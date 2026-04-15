@@ -22,10 +22,11 @@
   --hl-stroke: #3a6d96;
   --shadow: rgba(0,0,0,0.06);
 }
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
+html { height: 100%; }
+body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; display: flex; flex-direction: column; }
 
 .maps-container {
-  height: calc(100vh - 42px);
+  flex: 1; min-height: 0;
   display: grid; grid-template-columns: 1fr 1px 1fr;
 }
 .map-panel { position: relative; overflow: hidden; background: var(--water); }
@@ -102,19 +103,19 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 }
 
 @media (max-width: 768px) {
-  .maps-container { grid-template-columns: 1fr; grid-template-rows: 1fr 1px 1fr; height: calc(100vh - 38px); }
+  .maps-container { grid-template-columns: 1fr; grid-template-rows: 1fr 1px 1fr; }
   .map-divider { width: 100%; height: 1px; }
   .map-title .label { font-size: 1.2rem; }
   .map-title .sub { font-size: 0.65rem; }
   .zoom-ctrl { bottom: 8px; left: 6px; }
   .zoom-btn { width: 26px; height: 26px; font-size: 0.95rem; }
-  .status-bar { height: 38px; padding: 0 10px; gap: 6px; }
-  .chip { font-size: 0.65rem; padding: 2px 7px; }
-  .s-sel { font-size: 0.7rem; }
+  .selector-panel { padding: 8px 12px; }
+  .chip { font-size: 0.7rem; padding: 5px 11px; }
+  .s-sel { font-size: 0.75rem; }
 }
 @media (max-width: 420px) {
   .map-title .label { font-size: 1.05rem; }
-  .chip { font-size: 0.6rem; padding: 2px 5px; }
+  .chip { font-size: 0.65rem; padding: 4px 9px; }
 }
 </style>
 </head>
@@ -148,10 +149,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   </div>
 </div>
 
-<div class="status-bar">
+<div class="selector-panel">
+  <span class="selector-title">Select a District to Compare</span>
+  <div class="selector-row" id="chips"></div>
   <span class="s-sel" id="sel-label"></span>
-  <div class="s-space"></div>
-  <div class="chips" id="chips"></div>
 </div>
 
 <div class="map-tooltip" id="tooltip"></div>
@@ -189,6 +190,20 @@ const DEF_FILL = '#e0e0e0', DEF_STROKE = '#bdbdbd', DEF_OPACITY = 0.85;
 
 const maps = {};
 let selectedId = null;
+
+// Manual label offsets [dx, dy] in SVG pixels to fix centroid placement
+const LABEL_OFFSETS = {
+  current: {
+    '02': [55, -35],   // District 2: center it above Virginia Beach
+    '08': [0, -6],     // District 8: push up a bit
+  },
+  proposed: {
+    '01': [-15, -45],  // District 1: left of Fredericksburg
+    '04': [55, -15],   // District 4: more centered in the district
+    '07': [0, -35],    // District 7: push up
+    '10': [0, 12],     // District 10: push down
+  }
+};
 
 function getLabelSize() {
   const w = window.innerWidth;
@@ -238,7 +253,6 @@ function initMap(side, geoData) {
   const zoom = d3.zoom().scaleExtent([0.8, 12]).on('zoom', ev => {
     g.attr('transform', ev.transform);
     cityG.attr('transform', ev.transform);
-    syncZoom(side, ev.transform);
     resolveOverlaps(side, ev.transform.k);
   });
   svg.call(zoom);
@@ -291,13 +305,6 @@ function resolveOverlaps(side, k) {
   });
 }
 
-let syncingZoom = false;
-function syncZoom(from, t) {
-  if (syncingZoom) return; syncingZoom = true;
-  const to = from === 'current' ? 'proposed' : 'current';
-  if (maps[to]) { maps[to].svg.call(maps[to].zoom.transform, t); resolveOverlaps(to, t.k); }
-  syncingZoom = false;
-}
 function zoomMap(s, f) { if (!maps[s]) return; maps[s].svg.transition().duration(250).call(maps[s].zoom.scaleBy, f, [maps[s].W/2, maps[s].H/2]); }
 function resetZoom(s) { if (!maps[s]) return; maps[s].svg.transition().duration(300).call(maps[s].zoom.transform, d3.zoomIdentity); }
 

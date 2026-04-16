@@ -109,13 +109,16 @@ body { height: 100%; background: var(--bg); color: var(--text); font-family: 'In
   .map-title .sub { font-size: 0.65rem; }
   .zoom-ctrl { bottom: 8px; left: 6px; }
   .zoom-btn { width: 26px; height: 26px; font-size: 0.95rem; }
-  .selector-panel { padding: 8px 12px; }
-  .chip { font-size: 0.7rem; padding: 5px 11px; }
+  .selector-panel { padding: 6px 10px 8px; gap: 4px; }
+  .selector-title { font-size: 0.65rem; }
+  .chip { font-size: 0.72rem; padding: 5px 11px; border-radius: 5px; }
   .s-sel { font-size: 0.75rem; }
 }
 @media (max-width: 420px) {
   .map-title .label { font-size: 1.05rem; }
-  .chip { font-size: 0.65rem; padding: 4px 9px; }
+  .chip { font-size: 0.66rem; padding: 4px 9px; gap: 4px; }
+  .selector-row { gap: 4px; }
+  .selector-panel { padding: 5px 8px 7px; }
 }
 </style>
 </head>
@@ -191,17 +194,17 @@ const DEF_FILL = '#e0e0e0', DEF_STROKE = '#bdbdbd', DEF_OPACITY = 0.85;
 const maps = {};
 let selectedId = null;
 
-// Manual label offsets [dx, dy] in SVG pixels to fix centroid placement
-const LABEL_OFFSETS = {
+// Manual label positions: [lng, lat] — place label at this coordinate instead of centroid
+const LABEL_POSITIONS = {
   current: {
-    '02': [200, -35],   // District 2: center it above Virginia Beach
-    '08': [0, -6],     // District 8: push up a bit
+    '02': [-76.05, 37.45],   // Center of Eastern Shore / above VA Beach
+    '08': [-77.15, 38.78],   // Nudge up from border
   },
   proposed: {
-    '01': [-15, -45],  // District 1: left of Fredericksburg
-    '04': [200, -15],   // District 4: more centered in the district
-    '07': [0, -200],    // District 7: push up
-    '10': [0, 20],     // District 10: push down
+    '01': [-77.55, 38.50],   // Left of Fredericksburg, inside D1
+    '04': [-77.85, 36.85],   // Centered in the big southern body
+    '07': [-78.55, 38.00],   // Push up
+    '10': [-77.85, 39.10],   // Push down
   }
 };
 
@@ -236,9 +239,17 @@ function initMap(side, geoData) {
     })
     .on('click', function(ev, d) { ev.stopPropagation(); selectDistrict(d.properties.district); });
 
+  const labelPos = LABEL_POSITIONS[side] || {};
   g.selectAll('text').data(geoData.features).join('text')
     .attr('class', 'district-label')
-    .attr('x', d => path.centroid(d)[0]).attr('y', d => path.centroid(d)[1])
+    .attr('x', d => {
+      const p = labelPos[d.properties.district];
+      return p ? projection(p)[0] : path.centroid(d)[0];
+    })
+    .attr('y', d => {
+      const p = labelPos[d.properties.district];
+      return p ? projection(p)[1] : path.centroid(d)[1];
+    })
     .attr('font-size', getLabelSize() + 'px')
     .text(d => parseInt(d.properties.district));
 
@@ -359,7 +370,17 @@ window.addEventListener('resize', () => {
     maps[s].projection.fitSize([W, H], maps[s].geoData);
     maps[s].g.selectAll('path').attr('d', maps[s].path);
     const fs = getLabelSize();
-    maps[s].g.selectAll('text').attr('x', d => maps[s].path.centroid(d)[0]).attr('y', d => maps[s].path.centroid(d)[1]).attr('font-size', fs+'px');
+    const labelPos = LABEL_POSITIONS[s] || {};
+    maps[s].g.selectAll('text')
+      .attr('x', d => {
+        const p = labelPos[d.properties.district];
+        return p ? maps[s].projection(p)[0] : maps[s].path.centroid(d)[0];
+      })
+      .attr('y', d => {
+        const p = labelPos[d.properties.district];
+        return p ? maps[s].projection(p)[1] : maps[s].path.centroid(d)[1];
+      })
+      .attr('font-size', getLabelSize() + 'px');
     const dots = maps[s].cityG.selectAll('.city-dot').nodes();
     const labels = maps[s].cityG.selectAll('.city-label').nodes();
     VA_CITIES.forEach(([n, lng, lat], i) => {
